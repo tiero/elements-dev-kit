@@ -22,7 +22,7 @@ type Partial struct {
 
 // WitnessUtxo defines a witness utxo
 type WitnessUtxo struct {
-	Asset  []byte
+	Asset  string
 	Value  uint64
 	Script []byte
 }
@@ -58,7 +58,11 @@ func (p *Partial) AddInput(hash string, index uint32, witnessUtxo *WitnessUtxo, 
 		if err != nil {
 			return err
 		}
-		witnessUtxo := transaction.NewTxOutput(witnessUtxo.Asset, elementsValue[:], witnessUtxo.Script)
+		elementsAsset, err := AssetHashToBytes(witnessUtxo.Asset, false)
+		if err != nil {
+			return err
+		}
+		witnessUtxo := transaction.NewTxOutput(elementsAsset, elementsValue[:], witnessUtxo.Script)
 		updater.AddInWitnessUtxo(witnessUtxo, lastAdded)
 		p.Data = updater.Upsbt
 		return nil
