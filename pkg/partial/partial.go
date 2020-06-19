@@ -4,10 +4,11 @@ import (
 	"encoding/hex"
 	"errors"
 
-	"github.com/btcsuite/btcd/btcec"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/tiero/ocean/internal/bufferutil"
+	"github.com/tiero/ocean/pkg/keypair"
 	"github.com/vulpemventures/go-elements/confidential"
+	"github.com/vulpemventures/go-elements/network"
 	"github.com/vulpemventures/go-elements/payment"
 	"github.com/vulpemventures/go-elements/pset"
 	"github.com/vulpemventures/go-elements/transaction"
@@ -15,7 +16,8 @@ import (
 
 // Partial defines a Partial Signed Elements Transaction
 type Partial struct {
-	Data *pset.Pset
+	Data    *pset.Pset
+	Network *network.Network
 }
 
 // WitnessUtxo defines a witness utxo
@@ -25,11 +27,10 @@ type WitnessUtxo struct {
 	Script []byte
 }
 
-
-//New returns a Partial instance with an empty pset in Partial.Data
+//NewPartial returns a Partial instance with an empty pset in Partial.Data
 func NewPartial() *Partial {
 	emptyPset, _ := pset.New([]*transaction.TxInput{}, []*transaction.TxOutput{}, 2, 0)
-	return &Partial{Data:emptyPset}
+	return &Partial{Data: emptyPset}
 }
 
 //AddInput adds an utxo to a Partial Signed Elements Transaction
@@ -81,7 +82,10 @@ func (p *Partial) AddOutput(asset string, value uint64, script []byte, blinded b
 	if err != nil {
 		return err
 	}
-	elementsAsset := AssetHashToBytes(asset, blinded)
+	elementsAsset, err := AssetHashToBytes(asset, blinded)
+	if err != nil {
+		return err
+	}
 	output := transaction.NewTxOutput(elementsAsset, elementsValue[:], script)
 
 	updater.AddOutput(output)
@@ -90,20 +94,28 @@ func (p *Partial) AddOutput(asset string, value uint64, script []byte, blinded b
 }
 
 //SignWithPrivateKey signs a witness input with a provided EC private key
-func (p *Partial) SignWithPrivateKey(index int, pay *payment.Payment, privKey *btcec.PrivateKey) error {
+func (p *Partial) SignWithPrivateKey(index int, keyPair *keypair.KeyPair) error {
 	updater, err := pset.NewUpdater(p.Data)
 	if err != nil {
 		return err
+	}
+
+	if index > (len(updater.Upsbt.Inputs) - 1) {
+		return errors.New("index out of range")
 	}
 
 	if updater.Upsbt.Inputs[index].NonWitnessUtxo != nil {
 		return errors.New("Only segwit input supported")
 	}
 	// legacy Script
-	legacyScript := append(append([]byte{0x76, 0xa9, 0x14}, pay.Hash...), []byte{0x88, 0xac}...)
 	witValue := updater.Upsbt.Inputs[index].WitnessUtxo.Value
+	prevoutPayment, err := payment.FromScript(updater.Upsbt.Inputs[index].WitnessUtxo.Script, p.Network, nil)
+	if err != nil {
+		return err
+	}
+	legacyScript := append(append([]byte{0x76, 0xa9, 0x14}, prevoutPayment.Hash...), []byte{0x88, 0xac}...)
 	witHash := updater.Upsbt.UnsignedTx.HashForWitnessV0(index, legacyScript, witValue[:], txscript.SigHashAll)
-	sig, err := privKey.Sign(witHash[:])
+	sig, err := keyPair.PrivateKey.Sign(witHash[:])
 	if err != nil {
 		return err
 	}
@@ -114,7 +126,7 @@ func (p *Partial) SignWithPrivateKey(index int, pay *payment.Payment, privKey *b
 	}
 
 	// Update the pset adding the input signature script and the pubkey.
-	_, err = updater.Sign(index, sigWithHashType, pay.PublicKey.SerializeCompressed(), nil, nil)
+	_, err = updater.Sign(index, sigWithHashType, keyPair.PublicKey.SerializeCompressed(), nil, nil)
 	if err != nil {
 		return err
 	}
@@ -124,14 +136,14 @@ func (p *Partial) SignWithPrivateKey(index int, pay *payment.Payment, privKey *b
 }
 
 //AssetHashToBytes reverse decode from hex string and reverse it adding a 0x01 byte for ublinded asset
-func AssetHashToBytes(hash string, blinded bool) []byte, error {
+func AssetHashToBytes(hash string, blinded bool) ([]byte, error) {
 	firstByte := byte(0x01)
 	if blinded {
 		firstByte = byte(0x00)
 	}
 	assetBytes, err := hex.DecodeString(hash)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	assetBytes = append([]byte{firstByte}, bufferutil.ReverseBytes(assetBytes)...)
 	return assetBytes, nil
