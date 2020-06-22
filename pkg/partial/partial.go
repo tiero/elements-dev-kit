@@ -27,10 +27,14 @@ type WitnessUtxo struct {
 	Script []byte
 }
 
-//NewPartial returns a Partial instance with an empty pset in Partial.Data
-func NewPartial() *Partial {
+//NewPartial returns a Partial instance with an empty pset in Partial.Data and the selected Network
+func NewPartial(net *network.Network) *Partial {
+	currentNetwork := &network.Liquid
+	if net != nil {
+		currentNetwork = net
+	}
 	emptyPset, _ := pset.New([]*transaction.TxInput{}, []*transaction.TxOutput{}, 2, 0)
-	return &Partial{Data: emptyPset}
+	return &Partial{Data: emptyPset, Network: currentNetwork}
 }
 
 //AddInput adds an utxo to a Partial Signed Elements Transaction
