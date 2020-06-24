@@ -27,10 +27,24 @@ type WitnessUtxo struct {
 	Script []byte
 }
 
-//NewPartial returns a Partial instance with an empty pset in Partial.Data
-func NewPartial() *Partial {
+// ConfidentialWitnessUtxo defines a confidential witness utxo
+type ConfidentialWitnessUtxo struct {
+	AssetCommitment string
+	ValueCommitment string
+	Script          []byte
+	Nonce           []byte
+	RangeProof      []byte
+	SurjectionProof []byte
+}
+
+//NewPartial returns a Partial instance with an empty pset in Partial.Data and the selected Network
+func NewPartial(net *network.Network) *Partial {
+	currentNetwork := &network.Liquid
+	if net != nil {
+		currentNetwork = net
+	}
 	emptyPset, _ := pset.New([]*transaction.TxInput{}, []*transaction.TxOutput{}, 2, 0)
-	return &Partial{Data: emptyPset}
+	return &Partial{Data: emptyPset, Network: currentNetwork}
 }
 
 //AddInput adds an utxo to a Partial Signed Elements Transaction
@@ -40,7 +54,10 @@ func (p *Partial) AddInput(hash string, index uint32, witnessUtxo *WitnessUtxo, 
 		return err
 	}
 
-	inputHash, _ := hex.DecodeString(hash)
+	inputHash, err := hex.DecodeString(hash)
+	if err != nil {
+		return err
+	}
 	inputHash = bufferutil.ReverseBytes(inputHash)
 	inputIndex := index
 	input := transaction.NewTxInput(inputHash, inputIndex)
@@ -62,7 +79,7 @@ func (p *Partial) AddInput(hash string, index uint32, witnessUtxo *WitnessUtxo, 
 		if err != nil {
 			return err
 		}
-		witnessUtxo := transaction.NewTxOutput(elementsAsset, elementsValue[:], witnessUtxo.Script)
+		witnessUtxo := &transaction.TxOutput{Asset: elementsAsset, Value: elementsValue[:], Script: witnessUtxo.Script}
 		updater.AddInWitnessUtxo(witnessUtxo, lastAdded)
 		p.Data = updater.Upsbt
 		return nil
@@ -73,6 +90,59 @@ func (p *Partial) AddInput(hash string, index uint32, witnessUtxo *WitnessUtxo, 
 	}
 
 	return errors.New("Either witnessUtxo or nonWitnessUtxo is missing")
+}
+
+//AddBlindedInput adds an utxo to a Partial Signed Elements Transaction
+func (p *Partial) AddBlindedInput(hash string, index uint32, witnessUtxo *ConfidentialWitnessUtxo, nonWitnessUtxo []byte) error {
+	updater, err := pset.NewUpdater(p.Data)
+	if err != nil {
+		return err
+	}
+
+	inputHash, err := hex.DecodeString(hash)
+	if err != nil {
+		return err
+	}
+	inputHash = bufferutil.ReverseBytes(inputHash)
+	inputIndex := index
+	input := transaction.NewTxInput(inputHash, inputIndex)
+
+	updater.AddInput(input)
+	lastAdded := len(updater.Upsbt.Inputs) - 1
+
+	err = updater.AddInSighashType(txscript.SigHashAll, lastAdded)
+	if err != nil {
+		return err
+	}
+
+	if witnessUtxo != nil {
+		valueCommitment, err := hex.DecodeString(witnessUtxo.ValueCommitment)
+		if err != nil {
+			return err
+		}
+		assetCommitment, err := hex.DecodeString(witnessUtxo.AssetCommitment)
+		if err != nil {
+			return err
+		}
+		witnessUtxo := &transaction.TxOutput{
+			Asset:           assetCommitment,
+			Value:           valueCommitment,
+			Script:          witnessUtxo.Script,
+			Nonce:           witnessUtxo.Nonce,
+			RangeProof:      witnessUtxo.RangeProof,
+			SurjectionProof: witnessUtxo.SurjectionProof,
+		}
+		updater.AddInWitnessUtxo(witnessUtxo, lastAdded)
+		p.Data = updater.Upsbt
+		return nil
+	}
+
+	if nonWitnessUtxo != nil {
+		return errors.New("Not yet implemented. Only segwit inputs supported")
+	}
+
+	return errors.New("Either witnessUtxo or nonWitnessUtxo is missing")
+
 }
 
 // AddOutput adds an output to a Partial Signed Elements Transaction

@@ -71,6 +71,19 @@ func (bs *blockstream) GetTransaction(hash string) (explorer.Transaction, error)
 	return *out, nil
 }
 
+func (bs *blockstream) GetTransactionHex(hash string) (string, error) {
+	url := fmt.Sprintf("%s/tx/%s/hex", bs.baseURL, hash)
+	status, resp, err := uhttp.NewHTTPRequest("GET", url, "", nil)
+	if err != nil {
+		return "", err
+	}
+	if status != http.StatusOK {
+		return "", fmt.Errorf(resp)
+	}
+
+	return resp, nil
+}
+
 func (bs *blockstream) Broadcast(tx string) (string, error) {
 	url := fmt.Sprintf("%s/tx", bs.baseURL)
 	status, resp, err := uhttp.NewHTTPRequest("POST", url, tx, nil)
@@ -103,10 +116,12 @@ func (bs *blockstream) EstimateFees() (explorer.Estimation, error) {
 }
 
 type utxo struct {
-	TxHash  string `json:"txid"`
-	TxIndex int    `json:"vout"`
-	TxValue int    `json:"value"`
-	TxAsset string `json:"asset"`
+	TxHash            string `json:"txid"`
+	TxIndex           int    `json:"vout"`
+	TxValue           int    `json:"value"`
+	TxAsset           string `json:"asset"`
+	TxValueCommitment string `json:"assetcommitment"`
+	TxAssetCommitment string `json:"valuecommitment"`
 }
 
 func (u utxo) Hash() string {
@@ -123,4 +138,12 @@ func (u utxo) Value() uint64 {
 
 func (u utxo) Asset() string {
 	return u.TxAsset
+}
+
+func (u utxo) ValueCommitment() string {
+	return u.TxValueCommitment
+}
+
+func (u utxo) AssetCommitment() string {
+	return u.TxAssetCommitment
 }
