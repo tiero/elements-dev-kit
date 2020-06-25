@@ -5,6 +5,7 @@ type Explorer interface {
 	Ping() int
 	GetUnspents(address string) ([]Utxo, error)
 	GetTransaction(hash string) (Transaction, error)
+	GetTransactionHex(hash string) (string, error)
 	Broadcast(tx string) (string, error)
 	EstimateFees() (Estimation, error)
 }
@@ -15,6 +16,8 @@ type Utxo interface {
 	Index() uint32
 	Value() uint64
 	Asset() string
+	ValueCommitment() string
+	AssetCommitment() string
 }
 
 // Transaction interface defines what data a transaction must include
