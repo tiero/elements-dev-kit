@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/tiero/ocean/pkg/explorer/blockstream"
 	"github.com/tiero/ocean/pkg/keypair"
@@ -62,7 +63,7 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
+	// Bob Blinding KeyPair
 	bobBlind, err := keypair.FromPrivateKey(bobBlindHex)
 	if err != nil {
 		t.Fatal(err)
@@ -81,6 +82,8 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	time.Sleep(5 * time.Second)
 
 	// Retrieve sender utxos.
 	utxos, err := e.GetUnspents(aliceConfAddr)
