@@ -3,7 +3,6 @@ package partial
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -111,29 +110,14 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = p.AddOutput(network.Regtest.AssetID, 99995000, bob.Script, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = p.AddOutput(network.Regtest.AssetID, 5000, []byte{}, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	err = p.AddOutput(network.Regtest.AssetID, 99990000, bob.Script, false)
+	err = p.AddOutput(network.Regtest.AssetID, 5000, bob.Script, false)
+	err = p.AddOutput(network.Regtest.AssetID, 4500, bob.Script, false)
+	err = p.AddOutput(network.Regtest.AssetID, 500, []byte{}, false)
 
-	println(len(p.Data.Outputs))
-
-	blindingPrivKeys := [][]byte{kpBlind.PrivateKey.Serialize()}
-	blindingPubKeys := [][]byte{bobBlind.PublicKey.SerializeCompressed()}
-	blinder, err := pset.NewBlinder(
-		p.Data,
-		blindingPrivKeys,
-		blindingPubKeys,
-		nil,
-		nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = blinder.Blind()
+	blindingPrivKeysOfInputs := [][]byte{kpBlind.PrivateKey.Serialize()}
+	blindingPubKeysOfOutputs := [][]byte{bobBlind.PublicKey.SerializeCompressed(), bobBlind.PublicKey.SerializeCompressed(), bobBlind.PublicKey.SerializeCompressed()}
+	err = p.BlindWithKeys(blindingPrivKeysOfInputs, blindingPubKeysOfOutputs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,12 +142,30 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 		t.Errorf("sanity check: %w", err)
 	}
 
-	b64, err := pFinalized.ToBase64()
+	/* 	b64, err := pFinalized.ToBase64()
+	   	if err != nil {
+	   		t.Errorf("base64: %w", err)
+	   	}
+
+	   	fmt.Println(b64) */
+
+	// Extract the final signed transaction from the Pset wrapper.
+	finalTx, err := pset.Extract(pFinalized)
 	if err != nil {
-		t.Errorf("base64: %w", err)
+		t.Fatal(err)
 	}
 
-	fmt.Println(b64)
+	// Serialize the transaction and try to broadcast.
+	txHex, err := finalTx.ToHex()
+	if err != nil {
+		t.Fatal(err)
+	}
+	txHash, err := e.Broadcast(txHex)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	println(txHash)
 
 }
 

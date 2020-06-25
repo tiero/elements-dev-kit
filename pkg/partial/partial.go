@@ -167,6 +167,25 @@ func (p *Partial) AddOutput(asset string, value uint64, script []byte, blinded b
 	return nil
 }
 
+//BlindWithKeys unblinds all the inputs and blinds all the outputs with the provided arrays of keys
+func (p *Partial) BlindWithKeys(blindingPublicKeys [][]byte, blindingPrivateKeys [][]byte) error {
+	blinder, err := pset.NewBlinder(
+		p.Data,
+		blindingPublicKeys,
+		blindingPrivateKeys,
+		nil,
+		nil)
+	if err != nil {
+		return err
+	}
+	err = blinder.Blind()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 //SignWithPrivateKey signs a witness input with a provided EC private key
 func (p *Partial) SignWithPrivateKey(index int, keyPair *keypair.KeyPair) error {
 	updater, err := pset.NewUpdater(p.Data)

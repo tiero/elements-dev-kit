@@ -120,8 +120,8 @@ type utxo struct {
 	TxIndex           int    `json:"vout"`
 	TxValue           int    `json:"value"`
 	TxAsset           string `json:"asset"`
-	TxValueCommitment string `json:"assetcommitment"`
-	TxAssetCommitment string `json:"valuecommitment"`
+	TxValueCommitment string `json:"valuecommitment"`
+	TxAssetCommitment string `json:"assetcommitment"`
 }
 
 func (u utxo) Hash() string {
