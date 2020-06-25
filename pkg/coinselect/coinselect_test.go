@@ -39,12 +39,30 @@ func (u utxo) AssetCommitment() string {
 	return u.assetcommitment
 }
 
+func (u utxo) Nonce() []byte {
+	return nil
+}
+
+func (u utxo) Script() []byte {
+	return nil
+}
+
+func (u utxo) RangeProof() []byte {
+	return nil
+}
+
+func (u utxo) SurjectionProof() []byte {
+	return nil
+}
+
 func TestCoinSelect(t *testing.T) {
 
 	testUtxo1 := &utxo{"foo", 0, 1000, "dollar", "", ""}
 	testUtxo2 := &utxo{"bar", 0, 500, "dollar", "", ""}
 
-	gotUnspents, gotChange, err := CoinSelect([]explorer.Utxo{testUtxo1, testUtxo2}, 800, "dollar")
+	coins := &Coins{Utxos: []explorer.Utxo{testUtxo1, testUtxo2}}
+
+	gotUnspents, gotChange, err := coins.CoinSelect(800, "dollar")
 	if err != nil {
 		t.Errorf("Should not have throwed any error")
 	}

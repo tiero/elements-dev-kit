@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tiero/ocean/pkg/coinselect"
 	"github.com/tiero/ocean/pkg/explorer/blockstream"
 	"github.com/tiero/ocean/pkg/keypair"
 	"github.com/vulpemventures/go-elements/network"
@@ -90,36 +91,34 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	utxo := utxos[0]
-	prevoutTxHex, err := e.GetTransactionHex(utxo.Hash())
+
+	coins := &coinselect.Coins{Utxos: utxos, BlindingKey: kpBlind.PrivateKey.Serialize()}
+	selectedUtxos, change, err := coins.CoinSelect(50000000, network.Regtest.AssetID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	trx, err := transaction.NewTxFromHex(prevoutTxHex)
-	if err != nil {
-		t.Fatal(err)
+	for _, utxo := range selectedUtxos {
+		err := p.AddBlindedInput(utxo.Hash(), utxo.Index(), &ConfidentialWitnessUtxo{
+			AssetCommitment: utxo.AssetCommitment(),
+			ValueCommitment: utxo.ValueCommitment(),
+			Script:          utxo.Script(),
+			Nonce:           utxo.Nonce(),
+			RangeProof:      utxo.RangeProof(),
+			SurjectionProof: utxo.SurjectionProof(),
+		}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	err = p.AddBlindedInput(utxo.Hash(), utxo.Index(), &ConfidentialWitnessUtxo{
-		AssetCommitment: utxo.AssetCommitment(),
-		ValueCommitment: utxo.ValueCommitment(),
-		Script:          alice.Script,
-		Nonce:           trx.Outputs[utxo.Index()].Nonce,
-		RangeProof:      trx.Outputs[utxo.Index()].RangeProof,
-		SurjectionProof: trx.Outputs[utxo.Index()].SurjectionProof,
-	}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = p.AddOutput(network.Regtest.AssetID, 99990000, bob.Script, false)
-	err = p.AddOutput(network.Regtest.AssetID, 5000, bob.Script, false)
-	err = p.AddOutput(network.Regtest.AssetID, 4500, bob.Script, false)
-	err = p.AddOutput(network.Regtest.AssetID, 500, []byte{}, false)
+	var fee uint64 = 500
+	p.AddOutput(network.Regtest.AssetID, 50000000, bob.Script, false)
+	p.AddOutput(network.Regtest.AssetID, change-fee, bob.Script, false)
+	p.AddOutput(network.Regtest.AssetID, fee, []byte{}, false)
 
 	blindingPrivKeysOfInputs := [][]byte{kpBlind.PrivateKey.Serialize()}
-	blindingPubKeysOfOutputs := [][]byte{bobBlind.PublicKey.SerializeCompressed(), bobBlind.PublicKey.SerializeCompressed(), bobBlind.PublicKey.SerializeCompressed()}
+	blindingPubKeysOfOutputs := [][]byte{bobBlind.PublicKey.SerializeCompressed(), bobBlind.PublicKey.SerializeCompressed()}
 	err = p.BlindWithKeys(blindingPrivKeysOfInputs, blindingPubKeysOfOutputs)
 	if err != nil {
 		t.Fatal(err)
