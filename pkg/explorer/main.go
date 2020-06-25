@@ -18,6 +18,10 @@ type Utxo interface {
 	Asset() string
 	ValueCommitment() string
 	AssetCommitment() string
+	Nonce() []byte
+	Script() []byte
+	RangeProof() []byte
+	SurjectionProof() []byte
 }
 
 // Transaction interface defines what data a transaction must include

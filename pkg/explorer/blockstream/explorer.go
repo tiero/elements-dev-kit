@@ -7,6 +7,7 @@ import (
 
 	uhttp "github.com/tiero/ocean/internal/http"
 	"github.com/tiero/ocean/pkg/explorer"
+	etx "github.com/vulpemventures/go-elements/transaction"
 )
 
 const service = "blockstream"
@@ -47,6 +48,23 @@ func (bs *blockstream) GetUnspents(address string) ([]explorer.Utxo, error) {
 
 	unspents := make([]explorer.Utxo, len(out))
 	for i, o := range out {
+		if len(o.AssetCommitment()) > 0 && len(o.ValueCommitment()) > 0 {
+			prevoutTxHex, err := bs.GetTransactionHex(o.Hash())
+			if err != nil {
+				return nil, err
+			}
+
+			trx, err := etx.NewTxFromHex(prevoutTxHex)
+			if err != nil {
+				return nil, err
+			}
+
+			prevout := trx.Outputs[o.Index()]
+			o.TxScript = prevout.Script
+			o.TxNonce = prevout.Nonce
+			o.TxRangeProof = prevout.RangeProof
+			o.TxSurejectionProof = prevout.SurjectionProof
+		}
 		unspents[i] = o
 	}
 
@@ -116,12 +134,16 @@ func (bs *blockstream) EstimateFees() (explorer.Estimation, error) {
 }
 
 type utxo struct {
-	TxHash            string `json:"txid"`
-	TxIndex           int    `json:"vout"`
-	TxValue           int    `json:"value"`
-	TxAsset           string `json:"asset"`
-	TxValueCommitment string `json:"valuecommitment"`
-	TxAssetCommitment string `json:"assetcommitment"`
+	TxHash             string `json:"txid"`
+	TxIndex            int    `json:"vout"`
+	TxValue            int    `json:"value"`
+	TxAsset            string `json:"asset"`
+	TxValueCommitment  string `json:"valuecommitment"`
+	TxAssetCommitment  string `json:"assetcommitment"`
+	TxNonce            []byte
+	TxScript           []byte
+	TxRangeProof       []byte
+	TxSurejectionProof []byte
 }
 
 func (u utxo) Hash() string {
@@ -146,4 +168,20 @@ func (u utxo) ValueCommitment() string {
 
 func (u utxo) AssetCommitment() string {
 	return u.TxAssetCommitment
+}
+
+func (u utxo) Nonce() []byte {
+	return u.TxNonce
+}
+
+func (u utxo) Script() []byte {
+	return u.TxScript
+}
+
+func (u utxo) RangeProof() []byte {
+	return u.TxRangeProof
+}
+
+func (u utxo) SurjectionProof() []byte {
+	return u.TxSurejectionProof
 }
