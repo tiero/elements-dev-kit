@@ -25,8 +25,8 @@ func (cs *Coins) CoinSelect(amount uint64, asset string) (unspents []explorer.Ut
 
 	for index, unspent := range cs.Utxos {
 		u := unspent
-		assetHash := asset
-		amountSatoshis := amount
+		assetHash := u.Asset()
+		amountSatoshis := u.Value()
 		if len(u.AssetCommitment()) > 0 && len(u.ValueCommitment()) > 0 {
 			bk := cs.BlindingKey
 			if len(cs.BlindingKeys) > 0 {
@@ -43,7 +43,7 @@ func (cs *Coins) CoinSelect(amount uint64, asset string) (unspents []explorer.Ut
 			unspents = append(unspents, unspent)
 			availableSats += amountSatoshis
 
-			if availableSats >= amountSatoshis {
+			if availableSats >= amount {
 				break
 			}
 		}
