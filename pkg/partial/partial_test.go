@@ -118,7 +118,7 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 	p.AddOutput(network.Regtest.AssetID, fee, []byte{}, false)
 
 	blindingPrivKeysOfInputs := [][]byte{kpBlind.PrivateKey.Serialize()}
-	blindingPubKeysOfOutputs := [][]byte{bobBlind.PublicKey.SerializeCompressed(), bobBlind.PublicKey.SerializeCompressed(), bobBlind.PublicKey.SerializeCompressed()}
+	blindingPubKeysOfOutputs := [][]byte{bobBlind.PublicKey.SerializeCompressed(), bobBlind.PublicKey.SerializeCompressed()}
 	err = p.BlindWithKeys(blindingPrivKeysOfInputs, blindingPubKeysOfOutputs)
 	if err != nil {
 		t.Fatal(err)
