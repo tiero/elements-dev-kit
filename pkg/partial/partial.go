@@ -168,11 +168,11 @@ func (p *Partial) AddOutput(asset string, value uint64, script []byte, blinded b
 }
 
 //BlindWithKeys unblinds all the inputs and blinds all the outputs with the provided arrays of keys
-func (p *Partial) BlindWithKeys(blindingPublicKeys [][]byte, blindingPrivateKeys [][]byte) error {
+func (p *Partial) BlindWithKeys(blindingPrivateKeys [][]byte, blindingPublicKeys [][]byte) error {
 	blinder, err := pset.NewBlinder(
 		p.Data,
-		blindingPublicKeys,
 		blindingPrivateKeys,
+		blindingPublicKeys,
 		nil,
 		nil)
 	if err != nil {
