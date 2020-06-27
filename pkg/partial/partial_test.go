@@ -2,6 +2,7 @@ package partial
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/btcsuite/btcutil"
 	"github.com/tiero/ocean/pkg/coinselect"
 	"github.com/tiero/ocean/pkg/explorer/blockstream"
 	"github.com/tiero/ocean/pkg/keypair"
@@ -49,12 +51,16 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 	// PSET
 	p := NewPartial(&network.Regtest)
 	// Alice keypair
-	kp, err := keypair.FromPrivateKey(aliceHex)
+	wif, err := btcutil.DecodeWIF("cPCJXXKTkHrur9UcYxdh51MQ8NYArfnjdV4xSG9eqEbhzjRQh6h8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	kp, err := keypair.FromPrivateKey(hex.EncodeToString(wif.PrivKey.Serialize()))
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Alice Blinding KeyPair
-	kpBlind, err := keypair.FromPrivateKey(aliceBlindHex)
+	kpBlind, err := keypair.FromPrivateKey("fd9123214784758c69351f45aebf3c719533a05c5fa017a466b4f31328487552")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,15 +77,23 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 	}
 
 	alice := payment.FromPublicKey(kp.PublicKey, &network.Regtest, kpBlind.PublicKey)
-	aliceConfAddr, err := alice.ConfidentialWitnessPubKeyHash()
+	wrappedAlice, err := payment.FromPayment(alice)
 	if err != nil {
 		t.Fatal(err)
 	}
+	aliceConfAddress := wrappedAlice.ConfidentialScriptHash()
+	//aliceConfAddr := "AzpwTgRMptQ8CB1UTrc6ereqFt6ZDTwJSgm6iu2BHRZbrXEXyu8x2cjAkZR5BeVznVeiTCCqqsQKzcwD"
+	println(aliceConfAddress)
+	nativeSegwitAliceConfAddr, err := alice.ConfidentialWitnessPubKeyHash()
+	if err != nil {
+		t.Fatal(err)
+	}
+	println(nativeSegwitAliceConfAddr)
 
 	bob := payment.FromPublicKey(bobKeyPair.PublicKey, &network.Regtest, nil)
 
 	// Fund sender address.
-	_, err = faucet(aliceConfAddr)
+	_, err = faucet(aliceConfAddress)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +101,7 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	// Retrieve sender utxos.
-	utxos, err := e.GetUnspents(aliceConfAddr)
+	utxos, err := e.GetUnspents(aliceConfAddress)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +128,7 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 
 	var fee uint64 = 500
 	p.AddOutput(network.Regtest.AssetID, 50000000, bob.Script, false)
-	p.AddOutput(network.Regtest.AssetID, change-fee, bob.Script, false)
+	p.AddOutput(network.Regtest.AssetID, change-fee, alice.Script, false)
 	p.AddOutput(network.Regtest.AssetID, fee, []byte{}, false)
 
 	blindingPrivKeysOfInputs := [][]byte{kpBlind.PrivateKey.Serialize()}

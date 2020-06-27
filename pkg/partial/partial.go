@@ -3,6 +3,7 @@ package partial
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/tiero/ocean/internal/bufferutil"
@@ -197,31 +198,43 @@ func (p *Partial) SignWithPrivateKey(index int, keyPair *keypair.KeyPair) error 
 		return errors.New("index out of range")
 	}
 
-	if updater.Upsbt.Inputs[index].NonWitnessUtxo != nil {
+	currInput := updater.Upsbt.Inputs[index]
+	if currInput.NonWitnessUtxo != nil {
 		return errors.New("Only segwit input supported")
 	}
-	// legacy Script
-	witValue := updater.Upsbt.Inputs[index].WitnessUtxo.Value
-	prevoutPayment, err := payment.FromScript(updater.Upsbt.Inputs[index].WitnessUtxo.Script, p.Network, nil)
-	if err != nil {
-		return err
+
+	var witHash [32]byte
+	script := currInput.WitnessUtxo.Script
+	if script[0] == txscript.OP_0 {
+		println("native")
+		prevoutPayment, err := payment.FromScript(script, p.Network, nil)
+		if err != nil {
+			return err
+		}
+		// legacy Script
+		legacyScript := append(append([]byte{0x76, 0xa9, 0x14}, prevoutPayment.Hash...), []byte{0x88, 0xac}...)
+		witHash = updater.Upsbt.UnsignedTx.HashForWitnessV0(index, legacyScript, currInput.WitnessUtxo.Value[:], txscript.SigHashAll)
 	}
-	legacyScript := append(append([]byte{0x76, 0xa9, 0x14}, prevoutPayment.Hash...), []byte{0x88, 0xac}...)
-	witHash := updater.Upsbt.UnsignedTx.HashForWitnessV0(index, legacyScript, witValue[:], txscript.SigHashAll)
+
+	if script[0] == txscript.OP_HASH160 {
+		println("wrapped")
+		println(hex.EncodeToString(script))
+		witHash, err = updater.Upsbt.UnsignedTx.HashForSignature(index, script, txscript.SigHashAll)
+		if err != nil {
+			return err
+		}
+	}
+
 	sig, err := keyPair.PrivateKey.Sign(witHash[:])
 	if err != nil {
-		return err
+		return fmt.Errorf("PrivateKey Sign: %w", err)
 	}
 
 	sigWithHashType := append(sig.Serialize(), byte(txscript.SigHashAll))
-	if err != nil {
-		return err
-	}
-
-	// Update the pset adding the input signature script and the pubkey.
+	println(index)
 	_, err = updater.Sign(index, sigWithHashType, keyPair.PublicKey.SerializeCompressed(), nil, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("Updater Sign: %w", err)
 	}
 
 	p.Data = updater.Upsbt
