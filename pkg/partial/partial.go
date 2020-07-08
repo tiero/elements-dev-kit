@@ -205,20 +205,21 @@ func (p *Partial) SignWithPrivateKey(index int, keyPair *keypair.KeyPair) error 
 
 	var witHash [32]byte
 	script := currInput.WitnessUtxo.Script
-	if script[0] == txscript.OP_0 {
-		prevoutPayment, err := payment.FromScript(script, p.Network, nil)
-		if err != nil {
-			return err
-		}
-		// legacy Script
-		legacyScript := append(append([]byte{0x76, 0xa9, 0x14}, prevoutPayment.Hash...), []byte{0x88, 0xac}...)
-		witHash = updater.Data.UnsignedTx.HashForWitnessV0(index, legacyScript, currInput.WitnessUtxo.Value[:], txscript.SigHashAll)
-		sig, err := keyPair.PrivateKey.Sign(witHash[:])
-		if err != nil {
-			return fmt.Errorf("PrivateKey Sign: %w", err)
-		}
+	prevoutPayment, err := payment.FromScript(script, p.Network, nil)
+	if err != nil {
+		return err
+	}
+	// legacy Script
+	legacyScript := append(append([]byte{0x76, 0xa9, 0x14}, prevoutPayment.Hash...), []byte{0x88, 0xac}...)
+	witHash = updater.Data.UnsignedTx.HashForWitnessV0(index, legacyScript, currInput.WitnessUtxo.Value[:], txscript.SigHashAll)
+	sig, err := keyPair.PrivateKey.Sign(witHash[:])
+	if err != nil {
+		return fmt.Errorf("PrivateKey Sign: %w", err)
+	}
 
-		sigWithHashType := append(sig.Serialize(), byte(txscript.SigHashAll))
+	sigWithHashType := append(sig.Serialize(), byte(txscript.SigHashAll))
+
+	if script[0] == txscript.OP_0 {
 		_, err = updater.Sign(index, sigWithHashType, keyPair.PublicKey.SerializeCompressed(), nil, nil)
 		if err != nil {
 			return fmt.Errorf("Updater Sign: %w", err)
@@ -226,7 +227,11 @@ func (p *Partial) SignWithPrivateKey(index int, keyPair *keypair.KeyPair) error 
 	}
 
 	if script[0] == txscript.OP_HASH160 {
-		return errors.New("Only native segwit inputs are supported")
+		pay := payment.FromPublicKey(keyPair.PublicKey, p.Network, nil)
+		_, err = updater.Sign(index, sigWithHashType, keyPair.PublicKey.SerializeCompressed(), pay.WitnessScript, nil)
+		if err != nil {
+			return fmt.Errorf("Updater Sign: %w", err)
+		}
 	}
 
 	p.Data = updater.Data

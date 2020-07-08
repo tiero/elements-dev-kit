@@ -77,22 +77,24 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 	}
 
 	alice := payment.FromPublicKey(kp.PublicKey, &network.Regtest, kpBlind.PublicKey)
-	/* 	wrappedAlice, err := payment.FromPayment(alice)
-	   	if err != nil {
-	   		t.Fatal(err)
-	   	}
-	   	aliceConfAddress, err := wrappedAlice.ConfidentialScriptHash()
-	   	if err != nil {
-	   		t.Fatal(err)
-	   	}
-	   	//aliceConfAddr := "AzpwTgRMptQ8CB1UTrc6ereqFt6ZDTwJSgm6iu2BHRZbrXEXyu8x2cjAkZR5BeVznVeiTCCqqsQKzcwD"
-	   	println(aliceConfAddress) */
-
-	aliceNativeSegwitConfAddress, err := alice.ConfidentialWitnessPubKeyHash()
-	println(aliceNativeSegwitConfAddress)
+	wrappedAlice, err := payment.FromPayment(alice)
 	if err != nil {
 		t.Fatal(err)
 	}
+	aliceConfAddress, err := wrappedAlice.ConfidentialScriptHash()
+	if err != nil {
+		t.Fatal(err)
+	}
+	//aliceConfAddr := "AzpwTgRMptQ8CB1UTrc6ereqFt6ZDTwJSgm6iu2BHRZbrXEXyu8x2cjAkZR5BeVznVeiTCCqqsQKzcwD"
+	println(aliceConfAddress)
+
+	aliceNativeSegwitConfAddress, err := alice.ConfidentialWitnessPubKeyHash()
+	if err != nil {
+		t.Fatal(err)
+	}
+	println(aliceNativeSegwitConfAddress)
+
+	//BOB
 	bob := payment.FromPublicKey(bobKeyPair.PublicKey, &network.Regtest, nil)
 
 	// Fund sender address.
@@ -140,6 +142,13 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	/* 	b64, err := p.Data.ToBase64()
+	   	if err != nil {
+	   		t.Errorf("base64: %w", err)
+	   	}
+
+	   	fmt.Println(b64) */
+
 	p.AddOutput(network.Regtest.AssetID, fee, []byte{}, false)
 
 	err = p.SignWithPrivateKey(0, kp)
@@ -161,14 +170,6 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 	if err != nil {
 		t.Errorf("sanity check: %w", err)
 	}
-
-	/* 	b64, err := pFinalized.ToBase64()
-	   	if err != nil {
-	   		t.Errorf("base64: %w", err)
-	   	}
-
-	   	fmt.Println(b64) */
-
 	// Extract the final signed transaction from the Pset wrapper.
 	finalTx, err := pset.Extract(pFinalized)
 	if err != nil {
