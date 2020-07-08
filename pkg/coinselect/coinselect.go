@@ -72,10 +72,6 @@ func unblindUxto(prevout explorer.Utxo, blindingKey []byte) (*assetAndValue, err
 	if err != nil {
 		return nil, err
 	}
-	commitmentValue, err := confidential.CommitmentFromBytes(valueCommitment)
-	if err != nil {
-		return nil, err
-	}
 	nonce, err := confidential.NonceHash(
 		prevout.Nonce(),
 		blindingKey,
@@ -84,11 +80,11 @@ func unblindUxto(prevout explorer.Utxo, blindingKey []byte) (*assetAndValue, err
 		return nil, err
 	}
 	unblindOutputArg := confidential.UnblindOutputArg{
-		Nonce:        nonce,
-		Rangeproof:   prevout.RangeProof(),
-		ValueCommit:  *commitmentValue,
-		Asset:        assetCommitment,
-		ScriptPubkey: prevout.Script(),
+		Nonce:           nonce,
+		Rangeproof:      prevout.RangeProof(),
+		ValueCommitment: valueCommitment,
+		AssetCommitment: assetCommitment,
+		ScriptPubkey:    prevout.Script(),
 	}
 
 	output, err := confidential.UnblindOutput(unblindOutputArg)
