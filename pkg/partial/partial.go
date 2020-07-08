@@ -64,7 +64,7 @@ func (p *Partial) AddInput(hash string, index uint32, witnessUtxo *WitnessUtxo, 
 	input := transaction.NewTxInput(inputHash, inputIndex)
 
 	updater.AddInput(input)
-	lastAdded := len(updater.Upsbt.Inputs) - 1
+	lastAdded := len(updater.Data.Inputs) - 1
 
 	err = updater.AddInSighashType(txscript.SigHashAll, lastAdded)
 	if err != nil {
@@ -82,7 +82,7 @@ func (p *Partial) AddInput(hash string, index uint32, witnessUtxo *WitnessUtxo, 
 		}
 		witnessUtxo := &transaction.TxOutput{Asset: elementsAsset, Value: elementsValue[:], Script: witnessUtxo.Script}
 		updater.AddInWitnessUtxo(witnessUtxo, lastAdded)
-		p.Data = updater.Upsbt
+		p.Data = updater.Data
 		return nil
 	}
 
@@ -109,7 +109,7 @@ func (p *Partial) AddBlindedInput(hash string, index uint32, witnessUtxo *Confid
 	input := transaction.NewTxInput(inputHash, inputIndex)
 
 	updater.AddInput(input)
-	lastAdded := len(updater.Upsbt.Inputs) - 1
+	lastAdded := len(updater.Data.Inputs) - 1
 
 	err = updater.AddInSighashType(txscript.SigHashAll, lastAdded)
 	if err != nil {
@@ -134,7 +134,7 @@ func (p *Partial) AddBlindedInput(hash string, index uint32, witnessUtxo *Confid
 			SurjectionProof: witnessUtxo.SurjectionProof,
 		}
 		updater.AddInWitnessUtxo(witnessUtxo, lastAdded)
-		p.Data = updater.Upsbt
+		p.Data = updater.Data
 		return nil
 	}
 
@@ -164,7 +164,7 @@ func (p *Partial) AddOutput(asset string, value uint64, script []byte, blinded b
 	output := transaction.NewTxOutput(elementsAsset, elementsValue[:], script)
 
 	updater.AddOutput(output)
-	p.Data = updater.Upsbt
+	p.Data = updater.Data
 	return nil
 }
 
@@ -194,11 +194,11 @@ func (p *Partial) SignWithPrivateKey(index int, keyPair *keypair.KeyPair) error 
 		return err
 	}
 
-	if index > (len(updater.Upsbt.Inputs) - 1) {
+	if index > (len(updater.Data.Inputs) - 1) {
 		return errors.New("index out of range")
 	}
 
-	currInput := updater.Upsbt.Inputs[index]
+	currInput := updater.Data.Inputs[index]
 	if currInput.NonWitnessUtxo != nil {
 		return errors.New("Only segwit input supported")
 	}
@@ -206,38 +206,30 @@ func (p *Partial) SignWithPrivateKey(index int, keyPair *keypair.KeyPair) error 
 	var witHash [32]byte
 	script := currInput.WitnessUtxo.Script
 	if script[0] == txscript.OP_0 {
-		println("native")
 		prevoutPayment, err := payment.FromScript(script, p.Network, nil)
 		if err != nil {
 			return err
 		}
 		// legacy Script
 		legacyScript := append(append([]byte{0x76, 0xa9, 0x14}, prevoutPayment.Hash...), []byte{0x88, 0xac}...)
-		witHash = updater.Upsbt.UnsignedTx.HashForWitnessV0(index, legacyScript, currInput.WitnessUtxo.Value[:], txscript.SigHashAll)
-	}
-
-	if script[0] == txscript.OP_HASH160 {
-		println("wrapped")
-		println(hex.EncodeToString(script))
-		witHash, err = updater.Upsbt.UnsignedTx.HashForSignature(index, script, txscript.SigHashAll)
+		witHash = updater.Data.UnsignedTx.HashForWitnessV0(index, legacyScript, currInput.WitnessUtxo.Value[:], txscript.SigHashAll)
+		sig, err := keyPair.PrivateKey.Sign(witHash[:])
 		if err != nil {
-			return err
+			return fmt.Errorf("PrivateKey Sign: %w", err)
+		}
+
+		sigWithHashType := append(sig.Serialize(), byte(txscript.SigHashAll))
+		_, err = updater.Sign(index, sigWithHashType, keyPair.PublicKey.SerializeCompressed(), nil, nil)
+		if err != nil {
+			return fmt.Errorf("Updater Sign: %w", err)
 		}
 	}
 
-	sig, err := keyPair.PrivateKey.Sign(witHash[:])
-	if err != nil {
-		return fmt.Errorf("PrivateKey Sign: %w", err)
+	if script[0] == txscript.OP_HASH160 {
+		return errors.New("Only native segwit inputs are supported")
 	}
 
-	sigWithHashType := append(sig.Serialize(), byte(txscript.SigHashAll))
-	println(index)
-	_, err = updater.Sign(index, sigWithHashType, keyPair.PublicKey.SerializeCompressed(), nil, nil)
-	if err != nil {
-		return fmt.Errorf("Updater Sign: %w", err)
-	}
-
-	p.Data = updater.Upsbt
+	p.Data = updater.Data
 	return nil
 }
 

@@ -77,23 +77,26 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 	}
 
 	alice := payment.FromPublicKey(kp.PublicKey, &network.Regtest, kpBlind.PublicKey)
-	wrappedAlice, err := payment.FromPayment(alice)
-	if err != nil {
-		t.Fatal(err)
-	}
-	aliceConfAddress := wrappedAlice.ConfidentialScriptHash()
-	//aliceConfAddr := "AzpwTgRMptQ8CB1UTrc6ereqFt6ZDTwJSgm6iu2BHRZbrXEXyu8x2cjAkZR5BeVznVeiTCCqqsQKzcwD"
-	println(aliceConfAddress)
-	nativeSegwitAliceConfAddr, err := alice.ConfidentialWitnessPubKeyHash()
-	if err != nil {
-		t.Fatal(err)
-	}
-	println(nativeSegwitAliceConfAddr)
+	/* 	wrappedAlice, err := payment.FromPayment(alice)
+	   	if err != nil {
+	   		t.Fatal(err)
+	   	}
+	   	aliceConfAddress, err := wrappedAlice.ConfidentialScriptHash()
+	   	if err != nil {
+	   		t.Fatal(err)
+	   	}
+	   	//aliceConfAddr := "AzpwTgRMptQ8CB1UTrc6ereqFt6ZDTwJSgm6iu2BHRZbrXEXyu8x2cjAkZR5BeVznVeiTCCqqsQKzcwD"
+	   	println(aliceConfAddress) */
 
+	aliceNativeSegwitConfAddress, err := alice.ConfidentialWitnessPubKeyHash()
+	println(aliceNativeSegwitConfAddress)
+	if err != nil {
+		t.Fatal(err)
+	}
 	bob := payment.FromPublicKey(bobKeyPair.PublicKey, &network.Regtest, nil)
 
 	// Fund sender address.
-	_, err = faucet(aliceConfAddress)
+	_, err = faucet(aliceNativeSegwitConfAddress)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +104,7 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	// Retrieve sender utxos.
-	utxos, err := e.GetUnspents(aliceConfAddress)
+	utxos, err := e.GetUnspents(aliceNativeSegwitConfAddress)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +132,6 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 	var fee uint64 = 500
 	p.AddOutput(network.Regtest.AssetID, 50000000, bob.Script, false)
 	p.AddOutput(network.Regtest.AssetID, change-fee, alice.Script, false)
-	p.AddOutput(network.Regtest.AssetID, fee, []byte{}, false)
 
 	blindingPrivKeysOfInputs := [][]byte{kpBlind.PrivateKey.Serialize()}
 	blindingPubKeysOfOutputs := [][]byte{bobBlind.PublicKey.SerializeCompressed(), bobBlind.PublicKey.SerializeCompressed()}
@@ -137,6 +139,8 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	p.AddOutput(network.Regtest.AssetID, fee, []byte{}, false)
 
 	err = p.SignWithPrivateKey(0, kp)
 	if err != nil {
