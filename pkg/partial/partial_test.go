@@ -223,12 +223,6 @@ func TestCreatePset(t *testing.T) {
 		t.Fatalf("unspents: %s", err)
 	}
 	fromUtxo := utxos[0]
-	psetWithoutFees := NewPartial(currentNetwork)
-
-	updater, err := pset.NewUpdater(psetWithoutFees.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	inputHash, err := hex.DecodeString(fromUtxo.Hash())
 	if err != nil {
@@ -238,7 +232,18 @@ func TestCreatePset(t *testing.T) {
 	inputIndex := fromUtxo.Index()
 	input := transaction.NewTxInput(inputHash, inputIndex)
 
-	updater.AddInput(input)
+	emptyPset, _ := pset.New([]*transaction.TxInput{input}, []*transaction.TxOutput{}, 2, 0)
+	psetWithoutFees := &Partial{Data: emptyPset, Network: currentNetwork}
+	/*
+		psetWithoutFees := NewPartial(currentNetwork)
+	*/
+
+	updater, err := pset.NewUpdater(psetWithoutFees.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	//updater.AddInput(input)
 	lastAdded := len(updater.Data.Inputs) - 1
 
 	err = updater.AddInSighashType(txscript.SigHashAll, lastAdded)
@@ -260,7 +265,7 @@ func TestCreatePset(t *testing.T) {
 
 	//psetWithoutFees.AddInput(fromUtxo.Hash(), fromUtxo.Index(), &WitnessUtxo{Asset: fromUtxo.Asset(), Value: fromUtxo.Value(), Script: fromScript}, nil)
 
-	b64, err := updater.Data.ToBase64()
+	b64, err := emptyPset.ToBase64()
 	if err != nil {
 		t.Fatalf("base64: %s", err)
 	}
