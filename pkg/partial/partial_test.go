@@ -9,12 +9,12 @@ import (
 	"os"
 	"reflect"
 	"testing"
-	"time"
 
-	"github.com/btcsuite/btcutil"
-	"github.com/tiero/ocean/pkg/coinselect"
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/tiero/ocean/internal/bufferutil"
 	"github.com/tiero/ocean/pkg/explorer/blockstream"
 	"github.com/tiero/ocean/pkg/keypair"
+	"github.com/vulpemventures/go-elements/confidential"
 	"github.com/vulpemventures/go-elements/network"
 	"github.com/vulpemventures/go-elements/payment"
 	"github.com/vulpemventures/go-elements/pset"
@@ -41,7 +41,7 @@ func TestNewPartial(t *testing.T) {
 
 }
 
-func TestCreatePsetWithBlindedInput(t *testing.T) {
+/* func TestCreatePsetWithBlindedInput(t *testing.T) {
 	explorerURL, ok := os.LookupEnv("API_URL")
 	if !ok {
 		explorerURL = defaultExplorer
@@ -135,19 +135,19 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 	p.AddOutput(network.Regtest.AssetID, 50000000, bob.Script, false)
 	p.AddOutput(network.Regtest.AssetID, change-fee, alice.Script, false)
 
+	b64, err := p.Data.ToBase64()
+	if err != nil {
+		t.Errorf("base64: %w", err)
+	}
+
+	fmt.Println(b64)
+
 	blindingPrivKeysOfInputs := [][]byte{kpBlind.PrivateKey.Serialize()}
 	blindingPubKeysOfOutputs := [][]byte{bobBlind.PublicKey.SerializeCompressed(), bobBlind.PublicKey.SerializeCompressed()}
 	err = p.BlindWithKeys(blindingPrivKeysOfInputs, blindingPubKeysOfOutputs)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	/* 	b64, err := p.Data.ToBase64()
-	   	if err != nil {
-	   		t.Errorf("base64: %w", err)
-	   	}
-
-	   	fmt.Println(b64) */
 
 	p.AddOutput(network.Regtest.AssetID, fee, []byte{}, false)
 
@@ -188,6 +188,109 @@ func TestCreatePsetWithBlindedInput(t *testing.T) {
 
 	println(txHash)
 
+} */
+
+func TestCreatePset(t *testing.T) {
+	currentNetwork := &network.Regtest
+	explorerURL, ok := os.LookupEnv("API_URL")
+	if !ok {
+		explorerURL = defaultExplorer
+	}
+	//Explorer
+	e := blockstream.NewExplorer(explorerURL)
+	// Alice
+	fromKeyPair, _ := keypair.FromPrivateKey(aliceHex)
+	fromPayment := payment.FromPublicKey(fromKeyPair.PublicKey, currentNetwork, nil)
+	from, _ := fromPayment.WitnessPubKeyHash()
+	fromScript := fromPayment.WitnessScript
+	t.Log("From: " + hex.EncodeToString(fromScript))
+	//Bob
+	toKeyPair, _ := keypair.FromPrivateKey(bobHex)
+	toPayment := payment.FromPublicKey(toKeyPair.PublicKey, currentNetwork, nil)
+	toScript := toPayment.WitnessScript
+	t.Log("To: " + hex.EncodeToString(toScript))
+	// How much we send to Bob
+	//amount := 250000
+	/* asset, err := mint(from, 500000, explorerURL)
+	if err != nil {
+		t.Fatalf("mint: %s", err)
+	}
+	t.Log("Minted asset " + asset)
+	time.Sleep(5 * time.Second) */
+	//asset := "2dcf5a8834645654911964ec3602426fd3b9b4017554d3f9c19403e7fc1411d3"
+	utxos, err := e.GetUnspents(from)
+	if err != nil {
+		t.Fatalf("unspents: %s", err)
+	}
+	fromUtxo := utxos[0]
+	psetWithoutFees := NewPartial(currentNetwork)
+
+	updater, err := pset.NewUpdater(psetWithoutFees.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	inputHash, err := hex.DecodeString(fromUtxo.Hash())
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputHash = bufferutil.ReverseBytes(inputHash)
+	inputIndex := fromUtxo.Index()
+	input := transaction.NewTxInput(inputHash, inputIndex)
+
+	updater.AddInput(input)
+	lastAdded := len(updater.Data.Inputs) - 1
+
+	err = updater.AddInSighashType(txscript.SigHashAll, lastAdded)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	elementsValue, err := confidential.SatoshiToElementsValue(fromUtxo.Value())
+	if err != nil {
+		t.Fatal(err)
+	}
+	elementsAsset, err := AssetHashToBytes(fromUtxo.Asset(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	witnessUtxo := &transaction.TxOutput{Asset: elementsAsset, Value: elementsValue[:], Script: fromScript}
+	updater.AddInWitnessUtxo(witnessUtxo, lastAdded)
+
+	//psetWithoutFees.AddInput(fromUtxo.Hash(), fromUtxo.Index(), &WitnessUtxo{Asset: fromUtxo.Asset(), Value: fromUtxo.Value(), Script: fromScript}, nil)
+
+	b64, err := updater.Data.ToBase64()
+	if err != nil {
+		t.Fatalf("base64: %s", err)
+	}
+	t.Log(b64)
+
+}
+
+// Mint ...
+func mint(address string, qty int, baseURL string) (string, error) {
+	url := baseURL + "/mint"
+	payload := map[string]interface{}{"address": address, "quantity": qty}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	resp, err := http.Post(url, "appliation/json", bytes.NewBuffer(body))
+	if err != nil {
+		return "", err
+	}
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	respBody := map[string]interface{}{}
+	err = json.Unmarshal(data, &respBody)
+	if err != nil {
+		return "", err
+	}
+
+	return respBody["asset"].(string), nil
 }
 
 func faucet(address string) (string, error) {
