@@ -80,9 +80,8 @@ func (p *Partial) AddInput(hash string, index uint32, witnessUtxo *WitnessUtxo, 
 		if err != nil {
 			return err
 		}
-		witnessUtxo := &transaction.TxOutput{Asset: elementsAsset, Value: elementsValue[:], Script: witnessUtxo.Script}
+		witnessUtxo := transaction.NewTxOutput(elementsAsset, elementsValue[:], witnessUtxo.Script)
 		updater.AddInWitnessUtxo(witnessUtxo, lastAdded)
-		p.Data = updater.Data
 		return nil
 	}
 
@@ -134,7 +133,6 @@ func (p *Partial) AddBlindedInput(hash string, index uint32, witnessUtxo *Confid
 			SurjectionProof: witnessUtxo.SurjectionProof,
 		}
 		updater.AddInWitnessUtxo(witnessUtxo, lastAdded)
-		p.Data = updater.Data
 		return nil
 	}
 
